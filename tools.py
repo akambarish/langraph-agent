@@ -35,6 +35,23 @@ def search_web(query: str) -> list:
     results = tavily_search.invoke(query)
     return results
 
+@tool
+def add(a: int, b: int) -> int:
+    """Adds `a` and `b`.
 
+    Args:
+        a: First int
+        b: Second int
+    """
+    return a + b
 
+@tool
+def divide(a: int, b: int) -> float:
+    """Divide `a` and `b`.
+
+    Args:
+        a: First int
+        b: Second int
+    """
+    return a / b
 
