@@ -2,7 +2,6 @@
 import os
 from dotenv import load_dotenv
 import pandas as pd
-from IPython.display import Image, display
 load_dotenv('.env')
 
 WEATHER_API_KEY = os.environ['WEATHER_API_KEY']
@@ -18,7 +17,7 @@ from typing import List, Literal
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from tools import search_web, add, divide
+from tools import search_web
 
 """
 @tool
@@ -33,15 +32,12 @@ def search_web(query: str) -> list:
 llm = ChatOpenAI(model="gpt-4o-mini", api_key=OPENAI_API_KEY, temperature=0)
 
 tools = [search_web]
-tools1 = [add]
 llm_with_tools = llm.bind_tools(tools)
 
 from langgraph.prebuilt import ToolNode
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langgraph.types import Interrupt
 
 tool_node = ToolNode(tools)
-tool_node1 = ToolNode([add, divide]) 
 
 def call_model(state: MessagesState):
     messages = state["messages"]
@@ -54,25 +50,6 @@ def call_tools(state: MessagesState) -> Literal["tools", END]:
     if last_message.tool_calls:
         return "tools"
     return END
-
-def should_continue(state: MessagesState) -> Literal["tool_node", END]:
-    """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
-
-    messages = state["messages"]
-    last_message = messages[-1]
-
-    # If the LLM makes a tool call, then perform an action
-    if last_message.tool_calls:
-        return "tool_node"
-
-    # Otherwise, we stop (reply to the user)
-    return END
-
-def ask_user(state: MessagesState):
-    return Interrupt({"question": "What is your question?"})
-
-def use_answer(state: MessagesState):
-    return {"final": f"Nice to meet you, {state['answer']}"}
 
 # initialize the workflow from StateGraph
 workflow = StateGraph(MessagesState)
@@ -92,23 +69,11 @@ workflow.add_conditional_edges("LLM", call_tools)
 # tools node sends the information back to the LLM
 workflow.add_edge("tools", "LLM")
 
-# Add a tools node
-workflow.add_node("tools1", tool_node1)
-
-"""
-workflow.add_conditional_edges(
-    "LLM", 
-    should_continue,
-    ["tools", END]
-    )
-"""
-
 agent = workflow.compile()
 
 collected_chunks = []
-"""
 for chunk in agent.stream(
-    {"messages": [("user", "Who is wheather Lio Messi? If you get correct answer add 45 and 55, otherwise divide 50 by 10.")]} ,
+    {"messages": [("user", "Who is wheather Lio Messi?")]},
     stream_mode="values",
     ):
     msg = chunk["messages"][-1]
@@ -117,39 +82,9 @@ for chunk in agent.stream(
     collected_chunks.append({
         "content": msg.content
     })
-"""
-# Invoke
-from langchain.messages import HumanMessage
-
-if __name__ == "__main__":
-    user_message = input("Enter your question for the agent: " ).strip()
-    if not user_message:
-        print("No question provided. Exiting.")
-    else:
-        response = agent.invoke({"messages": [HumanMessage(content=user_message)]})
-        for msg in response["messages"]:
-            msg.pretty_print()
 
 # Convert to DataFrame
 #df = pd.DataFrame(collected_chunks)
 #print("\n\nData saved to DataFrame ✅")
 #print(df.head())
-
-#num = input("Are you happy with the answer. Enter Yes or No: ")
-#print(num)
-
-# Execution
-if "app" in globals():
-    for event in app.stream({}):
-        if isinstance(event, Interrupt):
-            user_input = input(event.value["question"] + ": ")
-            event.resume({"answer": user_input})
-
-"""
-# Show the agent's graph
-png_bytes  = agent.get_graph(xray=True).draw_mermaid_png()
-# Save to local file
-output_path = "agent_graph.png"
-with open(output_path, "wb") as f:
-    f.write(png_bytes)
- """ 
+    
